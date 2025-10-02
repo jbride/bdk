@@ -13,12 +13,16 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-bdk_core = { path = "../core", version = "0.6.1" }
-electrum-client = { version = "0.24.0", features = [ "proxy" ], default-features = false }
+
+# view configuration for "kellnr-denver-space":
+#   cat .cargo/config.toml
+bdk_core = { path = "../core", version = "0.6.1", registry = "kellnr-denver-space" }
+#electrum-client = { version = "0.24.0", features = [ "proxy" ], default-features = false }
+electrum-client = { version = "0.24.0", features = [ "proxy" ], default-features = false, registry = "kellnr-denver-space" }
 
 [dev-dependencies]
-bdk_testenv = { path = "../testenv" }
-bdk_chain = { path = "../chain" }
+bdk_testenv = { path = "../testenv", registry = "kellnr-denver-space" }
+bdk_chain = { path = "../chain", registry = "kellnr-denver-space" }
 criterion = { version = "0.2" }
 
 [features]

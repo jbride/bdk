@@ -17,7 +17,11 @@ workspace = true
 
 [dependencies]
 bdk_chain = { path = "../chain", version = "0.23.1", default-features = false }
-electrsd = { version = "0.28.0", features = [ "legacy" ], default-features = false }
+
+# view configuration for "kellnr-denver-space":
+#   cat .cargo/config.toml
+#electrsd = { version = "0.28.0", features = [ "legacy" ], default-features = false }
+electrsd = { version = "0.28.0", features = [ "legacy" ], default-features = false, registry = "kellnr-denver-space" }
 
 [dev-dependencies]
 bdk_testenv = { path = "." }
