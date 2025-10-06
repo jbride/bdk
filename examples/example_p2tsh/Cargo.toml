@@ -1,0 +1,9 @@
+[package]
+name = "example_p2tsh"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bdk_chain = { path = "../../crates/chain" }
+bdk_core = { path = "../../crates/core" }
+bitcoin = { version = "0.32.6", default-features = false, registry = "kellnr-denver-space" }
