@@ -79,20 +79,5 @@ fn main() {
     } else {
         println!("  ❌ Failed to index P2TSH script");
     }
-    
-    // Demonstrate P2TSH vs P2TR differences
-    println!("\n🔄 P2TSH vs P2TR Comparison:");
-    println!("  P2TSH:");
-    println!("    - Witness Version: 2");
-    println!("    - Script Format: OP_2 <32-byte-merkle-root>");
-    println!("    - Spending: Script path only (no key path)");
-    println!("    - Control Byte: 0xc1 (parity bit always 1)");
-    println!("    - Leaf Version: 0xc0");
-    
-    println!("\n✨ P2TSH Example completed successfully!");
-    println!("\nKey takeaways:");
-    println!("  • P2TSH uses witness version 2 (vs P2TR's version 1)");
-    println!("  • P2TSH only supports script path spending");
-    println!("  • P2TSH is compatible with BDK's indexing system");
-    println!("  • P2TSH provides quantum-resistant script hashing");
 }
+

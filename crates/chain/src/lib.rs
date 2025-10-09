@@ -64,6 +64,10 @@ mod spk_iter;
 pub use indexer::keychain_txout;
 #[cfg(feature = "miniscript")]
 pub use spk_iter::*;
+#[cfg(feature = "miniscript")]
+pub mod slh_dsa_support;
+#[cfg(feature = "miniscript")]
+pub use slh_dsa_support::SlhDsaHelper;
 #[cfg(feature = "rusqlite")]
 pub mod rusqlite_impl;
 

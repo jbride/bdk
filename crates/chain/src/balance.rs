@@ -27,6 +27,174 @@ impl Balance {
     pub fn total(&self) -> Amount {
         self.confirmed + self.trusted_pending + self.untrusted_pending + self.immature
     }
+
+    /// Calculate spendable balance accounting for SLH-DSA transaction fees.
+    ///
+    /// SLH-DSA (post-quantum) signatures are ~7857 bytes each, compared to ~64 bytes
+    /// for Schnorr signatures. This means transaction fees can be very high.
+    ///
+    /// This method estimates the actual spendable amount after deducting the fees
+    /// needed to spend the UTXOs with SLH-DSA signatures.
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor` - The descriptor used for the wallet
+    /// * `fee_rate` - The fee rate in satoshis per virtual byte
+    ///
+    /// # Returns
+    ///
+    /// The estimated spendable amount after fees
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "miniscript")]
+    /// # {
+    /// use bdk_chain::{Balance, DescriptorExt};
+    /// use bdk_chain::miniscript::{Descriptor, DescriptorPublicKey};
+    /// use bitcoin::Amount;
+    /// # use std::str::FromStr;
+    /// # let desc_str = "wpkh(xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8/0/*)";
+    /// # let descriptor = Descriptor::<DescriptorPublicKey>::from_str(desc_str).unwrap();
+    ///
+    /// let balance = Balance {
+    ///     confirmed: Amount::from_sat(100_000),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let fee_rate = Amount::from_sat(10); // 10 sat/vB
+    /// 
+    /// // For SLH-DSA descriptors, this will be significantly lower
+    /// let spendable = balance.spendable_with_fee(&descriptor, fee_rate);
+    /// 
+    /// if descriptor.has_slh_dsa_keys() {
+    ///     println!("Warning: High fees due to post-quantum signatures!");
+    ///     println!("Spendable: {} sats", spendable.to_sat());
+    /// }
+    /// # }
+    /// ```
+    #[cfg(feature = "miniscript")]
+    pub fn spendable_with_fee(
+        &self,
+        descriptor: &crate::miniscript::Descriptor<crate::miniscript::DescriptorPublicKey>,
+        fee_rate: Amount,
+    ) -> Amount {
+        use crate::slh_dsa_support::SlhDsaHelper;
+
+        let total = self.trusted_spendable();
+        
+        // Estimate the fee for spending this balance
+        let estimated_fee = SlhDsaHelper::estimate_fee(descriptor, fee_rate);
+        
+        // Return spendable amount after fees (saturating at zero)
+        total.checked_sub(estimated_fee).unwrap_or(Amount::ZERO)
+    }
+
+    /// Check if the balance is economically spendable with the given descriptor and fee rate.
+    ///
+    /// A UTXO is considered "economically spendable" if its value is greater than
+    /// the cost to spend it. With SLH-DSA signatures, many small UTXOs may become dust.
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor` - The descriptor used for the wallet
+    /// * `fee_rate` - The fee rate in satoshis per virtual byte
+    ///
+    /// # Returns
+    ///
+    /// `true` if the balance can be profitably spent, `false` if it would cost more to spend than it's worth
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "miniscript")]
+    /// # {
+    /// use bdk_chain::Balance;
+    /// use bdk_chain::miniscript::{Descriptor, DescriptorPublicKey};
+    /// use bitcoin::Amount;
+    /// # use std::str::FromStr;
+    /// # let desc_str = "wpkh(xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8/0/*)";
+    /// # let descriptor = Descriptor::<DescriptorPublicKey>::from_str(desc_str).unwrap();
+    ///
+    /// let small_balance = Balance {
+    ///     confirmed: Amount::from_sat(10_000),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let fee_rate = Amount::from_sat(10);
+    ///
+    /// if !small_balance.is_economically_spendable(&descriptor, fee_rate) {
+    ///     println!("Warning: Balance is too small to spend profitably!");
+    ///     println!("Consider consolidating UTXOs at lower fee rates");
+    /// }
+    /// # }
+    /// ```
+    #[cfg(feature = "miniscript")]
+    pub fn is_economically_spendable(
+        &self,
+        descriptor: &crate::miniscript::Descriptor<crate::miniscript::DescriptorPublicKey>,
+        fee_rate: Amount,
+    ) -> bool {
+        use crate::slh_dsa_support::SlhDsaHelper;
+
+        let total = self.trusted_spendable();
+        let estimated_fee = SlhDsaHelper::estimate_fee(descriptor, fee_rate);
+        
+        total > estimated_fee
+    }
+
+    /// Get detailed fee information for spending with SLH-DSA signatures.
+    ///
+    /// Returns a tuple of (total_balance, estimated_fee, net_spendable).
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor` - The descriptor used for the wallet
+    /// * `fee_rate` - The fee rate in satoshis per virtual byte
+    ///
+    /// # Returns
+    ///
+    /// `(total_balance, estimated_fee, net_spendable)` in satoshis
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "miniscript")]
+    /// # {
+    /// use bdk_chain::Balance;
+    /// use bdk_chain::miniscript::{Descriptor, DescriptorPublicKey};
+    /// use bitcoin::Amount;
+    /// # use std::str::FromStr;
+    /// # let desc_str = "wpkh(xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8/0/*)";
+    /// # let descriptor = Descriptor::<DescriptorPublicKey>::from_str(desc_str).unwrap();
+    ///
+    /// let balance = Balance {
+    ///     confirmed: Amount::from_sat(100_000),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let (total, fee, net) = balance.fee_breakdown(&descriptor, Amount::from_sat(10));
+    ///
+    /// println!("Total: {} sats", total.to_sat());
+    /// println!("Fee: {} sats ({}%)", fee.to_sat(), 
+    ///     (fee.to_sat() * 100) / total.to_sat().max(1));
+    /// println!("Net spendable: {} sats", net.to_sat());
+    /// # }
+    /// ```
+    #[cfg(feature = "miniscript")]
+    pub fn fee_breakdown(
+        &self,
+        descriptor: &crate::miniscript::Descriptor<crate::miniscript::DescriptorPublicKey>,
+        fee_rate: Amount,
+    ) -> (Amount, Amount, Amount) {
+        use crate::slh_dsa_support::SlhDsaHelper;
+
+        let total = self.trusted_spendable();
+        let estimated_fee = SlhDsaHelper::estimate_fee(descriptor, fee_rate);
+        let net_spendable = total.checked_sub(estimated_fee).unwrap_or(Amount::ZERO);
+
+        (total, estimated_fee, net_spendable)
+    }
 }
 
 impl core::fmt::Display for Balance {

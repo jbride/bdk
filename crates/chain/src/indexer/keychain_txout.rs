@@ -949,6 +949,55 @@ impl<K: Clone + Ord + Debug> KeychainTxOutIndex<K> {
             self.replenish_inner_index_did(did, self.lookahead);
         }
     }
+
+    /// Insert a P2TSH descriptor with SLH-DSA support.
+    ///
+    /// This is a convenience method that wraps [`insert_descriptor`](Self::insert_descriptor)
+    /// for P2TSH descriptors. P2TSH descriptors may contain SLH-DSA post-quantum keys.
+    ///
+    /// Returns `true` if the descriptor was newly inserted, `false` if it already existed.
+    ///
+    /// # Errors
+    ///
+    /// See [`insert_descriptor`](Self::insert_descriptor) for possible errors.
+    pub fn insert_tsh_descriptor(
+        &mut self,
+        keychain: K,
+        descriptor: crate::miniscript::descriptor::Tsh<DescriptorPublicKey>,
+    ) -> Result<bool, InsertDescriptorError<K>> {
+        self.insert_descriptor(keychain, Descriptor::Tsh(descriptor))
+    }
+
+    /// Check if any indexed descriptors contain SLH-DSA keys.
+    ///
+    /// SLH-DSA keys significantly impact transaction fees due to their large
+    /// signature size (~7857 bytes vs ~64 bytes for Schnorr).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "miniscript")]
+    /// # {
+    /// use bdk_chain::indexer::keychain_txout::KeychainTxOutIndex;
+    /// # use bdk_chain::DescriptorExt;
+    /// # use bdk_chain::miniscript::{Descriptor, DescriptorPublicKey};
+    /// # use std::str::FromStr;
+    ///
+    /// let mut index = KeychainTxOutIndex::<String>::default();
+    /// # let desc_str = "wpkh(xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8/0/*)";
+    /// # let descriptor = Descriptor::<DescriptorPublicKey>::from_str(desc_str).unwrap();
+    /// # index.insert_descriptor("external".to_string(), descriptor).unwrap();
+    ///
+    /// if index.has_slh_dsa_descriptors() {
+    ///     println!("⚠️  Warning: Wallet uses post-quantum signatures");
+    ///     println!("Transaction fees will be significantly higher");
+    /// }
+    /// # }
+    /// ```
+    pub fn has_slh_dsa_descriptors(&self) -> bool {
+        use crate::DescriptorExt;
+        self.keychains().any(|(_, desc)| desc.has_slh_dsa_keys())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
