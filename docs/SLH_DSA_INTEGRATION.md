@@ -184,7 +184,7 @@ impl<K: Ord + Clone> KeychainTxOutIndex<K> {
 ```rust
 use bdk_chain::miniscript::{
     Descriptor, Miniscript, Tap,
-    descriptor::{Tsh, TapTree, SlhDsaPublicKey}
+    descriptor::{Tsh, TapTree, SlhDsaPublicKey, NoSecp256k1Key}
 };
 use bdk_chain::{KeychainTxOutIndex, IndexedTxGraph};
 use bitcoin::Network;
@@ -194,7 +194,9 @@ let key_bytes: [u8; 32] = /* your SLH-DSA public key */;
 let slh_dsa_key = SlhDsaPublicKey::from_bytes(key_bytes);
 
 // 2. Create a miniscript with SLH-DSA terminal
-let ms: Miniscript<XOnlyPublicKey, Tap> = Miniscript::slh_dsa_pk(slh_dsa_key);
+// NoSecp256k1Key is a placeholder type that clearly indicates
+// this miniscript contains only post-quantum keys, no secp256k1 keys
+let ms: Miniscript<NoSecp256k1Key, Tap> = Miniscript::slh_dsa_pk(slh_dsa_key);
 
 // 3. Create P2TSH descriptor
 let tsh = Tsh::new(Some(TapTree::leaf(ms)))?;
@@ -210,6 +212,8 @@ for (idx, spk) in descriptor.spk_iter().take(5) {
     println!("Address {}: {}", idx, address);
 }
 ```
+
+**Note on `NoSecp256k1Key`**: This is a special type from miniscript v13.0.0-pqc-0.2+ that serves as a placeholder type parameter. It makes the code self-documenting by clearly indicating that the miniscript contains only post-quantum (SLH-DSA) keys and no traditional secp256k1 keys.
 
 ### Fee-Aware Balance Calculation
 
@@ -265,29 +269,31 @@ println!("Estimated fee: {} sats", estimated_fee.to_sat());
 ### Multi-Leaf P2TSH with SLH-DSA
 
 ```rust
-use bdk_chain::miniscript::{Miniscript, Tap, descriptor::{SlhDsaPublicKey, TapTree}};
+use bdk_chain::miniscript::{
+    Miniscript, Tap, 
+    descriptor::{SlhDsaPublicKey, NoSecp256k1Key, TapTree}
+};
+use bitcoin::key::XOnlyPublicKey;
 
 // Create multiple spending paths
 let slh_key = SlhDsaPublicKey::from_bytes([/* key 1 */]);
-let slh_leaf = Miniscript::slh_dsa_pk(slh_key);
+// Use NoSecp256k1Key for the SLH-DSA-only leaf
+let slh_leaf: Miniscript<NoSecp256k1Key, Tap> = Miniscript::slh_dsa_pk(slh_key);
 
 // Traditional Schnorr key as backup
 let schnorr_key = XOnlyPublicKey::from_slice(&[/* key 2 */])?;
-let schnorr_leaf: Miniscript<_, Tap> = Miniscript::pk(schnorr_key);
+let schnorr_leaf: Miniscript<XOnlyPublicKey, Tap> = Miniscript::pk(schnorr_key);
 
-// Create taptree with both options
-let tree = TapTree::branch(
-    TapTree::leaf(slh_leaf),     // Post-quantum path (expensive)
-    TapTree::leaf(schnorr_leaf),  // Traditional path (cheaper)
-)?;
-
-let tsh = Tsh::new(Some(tree))?;
-let descriptor = Descriptor::Tsh(tsh);
+// Note: When mixing leaf types with different Pk parameters,
+// you'll need to handle the type conversion or use separate trees
+// This example shows the concept - actual implementation may vary
 
 // Wallet can spend using either path
 // - Use SLH-DSA for long-term security
 // - Use Schnorr for lower fees when quantum threat is not immediate
 ```
+
+**Type System Note**: When creating hybrid taptrees with both SLH-DSA and traditional keys, you may need to work with separate trees or use type erasure techniques since `NoSecp256k1Key` and `XOnlyPublicKey` are different types.
 
 ## Testing
 
@@ -645,14 +651,16 @@ impl SlhDsaHelper {
 
 ## Changelog
 
-### Version 0.23.2-pqc-0.0 (Current)
+### Version 0.23.2-pqc-0.1 (Current)
 
+- ✅ Updated to miniscript 13.0.0-pqc-0.2 (adds `NoSecp256k1Key` support)
 - ✅ Added `DescriptorExt` enhancements for SLH-DSA awareness
 - ✅ Implemented `SlhDsaHelper` for fee estimation and planning
 - ✅ Extended `Balance` with SLH-DSA fee calculations
 - ✅ Added P2TSH indexing support
 - ✅ Created comprehensive test suite
-- ✅ Added documentation and examples
+- ✅ Added documentation and examples (including `example_p2tsh_slh_dsa`)
+- ✅ Full support for `NoSecp256k1Key` type parameter for post-quantum-only miniscripts
 
 ### Future Versions
 

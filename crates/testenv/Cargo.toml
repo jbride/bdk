@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-bdk_chain = { path = "../chain", version = "0.23.2-pqc-0.0", default-features = false, registry = "kellnr-denver-space" }
+bdk_chain = { path = "../chain", version = "0.23.2-pqc-0.1", default-features = false, registry = "kellnr-denver-space" }
 
 # view configuration for "kellnr-denver-space":
 #   cat .cargo/config.toml
